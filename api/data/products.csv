@@ -1,0 +1,8 @@
+id,name,quantity,price,location
+prod-1001,Milk,21,3.5,North
+prod-1002,Bread,15,2.75,North
+prod-1003,Eggs,42,4.25,South
+prod-1004,Coffee Beans,9,12.99,South
+prod-1005,Apples,18,1.25,North
+prod-1006,Tomatoes,7,2.1,South
+prod-1007,Coffee Cups,30,2.5,North

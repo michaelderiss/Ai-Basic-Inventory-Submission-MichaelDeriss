@@ -111,7 +111,7 @@ def request_llm(messages: list[dict[str, str]], tools: list[dict[str, Any]] | No
         raise RuntimeError("GROQ_API_KEY is not set. Add it to a .env file in the project root.")
 
     payload = {
-        "model": "llama-3.1-8b-instant",
+        "model": "openai/gpt-oss-20b",
         "messages": messages,
         "temperature": 0.2,
     }
@@ -166,7 +166,6 @@ def print_welcome_message() -> None:
     print(f"API base URL: {API_BASE_URL}")
     print("Set GROQ_API_KEY in a .env file before running the full loop against the LLM.")
 
-
 def run_agent_loop(user_message: str = "Check the current inventory and flag low stock items.") -> str:
     """Project scaffold for the agent loop.
 
@@ -183,33 +182,37 @@ def run_agent_loop(user_message: str = "Check the current inventory and flag low
     ]
 
     try:
-        llm_response = request_llm(messages, tools)
-        first_choice = llm_response["choices"][0]
-        assistant_message = first_choice["message"].get("content") or "I am ready to process the inventory task."
-        append_conversation_log("agent", assistant_message)
+        while True:
+            llm_response = request_llm(messages, tools)
+            message = llm_response["choices"][0]["message"]
 
-        if "tool_calls" not in first_choice["message"]:
-            return assistant_message
+            #Stop the loop
+            if "tool_calls" not in message:
+                assistant_message = message.get("content") or "I am ready to process the inventory task."
+                append_conversation_log("agent", assistant_message)
+                return assistant_message
 
-        for tool_call in first_choice["message"]["tool_calls"]:
-            tool_name = tool_call["function"]["name"]
-            tool_args = tool_call["function"].get("arguments", {})
-            if isinstance(tool_args, str):
-                import json
-                tool_args = json.loads(tool_args)
+            #Do the action and update memory
+            for tool_call in message["tool_calls"]:
+                tool_name = tool_call["function"]["name"]
+                tool_args = tool_call["function"].get("arguments", {})
 
-            append_conversation_log("tool", f"Call {tool_name} with {tool_args}", tool_call=tool_name)
-            tool_result = call_tool(tool_name, tool_args)
-            messages.append({"role": "tool", "tool_call_id": tool_call["id"], "name": tool_name, "content": str(tool_result)})
-            append_conversation_log("api", str(tool_result), tool_call=tool_name)
+                if isinstance(tool_args, str):
+                    import json
+                    tool_args = json.loads(tool_args)
 
-        # TODO: hand-code the final loop here.
-        # The missing logic should keep the conversation context in memory, decide whether to keep calling
-        # tools, inject the tool result back into the model context, and exit cleanly when the LLM gives a
-        # final human response.
+                append_conversation_log("tool", f"Call {tool_name} with {tool_args}", tool_call=tool_name)
 
-        
-        return assistant_message
+                tool_result = call_tool(tool_name, tool_args)
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "name": tool_name,
+                    "content": str(tool_result),
+                })
+
+                append_conversation_log("api", str(tool_result), tool_call=tool_name)
 
     except RuntimeError:
         return "The agent is ready, but the LLM key is missing. Add GROQ_API_KEY to a .env file and rerun the loop."
